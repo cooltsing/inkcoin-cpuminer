@@ -103,13 +103,13 @@ struct workio_cmd {
 enum sha256_algos {
 	ALGO_SCRYPT,		/* scrypt(1024,1,1) */
 	ALGO_SHA256D,		/* SHA-256d */
-	ALGO_QUARK,
+	ALGO_INK,
 };
 
 static const char *algo_names[] = {
 	[ALGO_SCRYPT]		= "scrypt",
 	[ALGO_SHA256D]		= "sha256d",
-	[ALGO_QUARK]		= "quark",
+	[ALGO_INK]		= "ink",
 };
 
 bool opt_hashdebug = false;
@@ -782,8 +782,8 @@ static void *miner_thread(void *userdata)
 			rc = scanhash_sha256d(thr_id, work.data, work.target,
 			                      max_nonce, &hashes_done);
 			break;
-		case ALGO_QUARK:
-			rc = scanhash_quark(thr_id, work.data, work.target,
+		case ALGO_INK:
+			rc = scanhash_ink(thr_id, work.data, work.target,
 			                      max_nonce, &hashes_done);
 			break;
 		default:
@@ -1301,11 +1301,6 @@ int main(int argc, char *argv[])
 	/* parse command line */
 	parse_cmdline(argc, argv);
 
-	if (opt_algo==ALGO_QUARK)
-	{
-		init_quarkhash_contexts();
-	}	
-	
 	pthread_mutex_init(&applog_lock, NULL);
 	pthread_mutex_init(&stats_lock, NULL);
 	pthread_mutex_init(&g_work_lock, NULL);

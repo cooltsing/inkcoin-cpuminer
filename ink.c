@@ -4,130 +4,23 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "sph_blake.h"
-#include "sph_bmw.h"
-#include "sph_groestl.h"
-#include "sph_jh.h"
-#include "sph_keccak.h"
-#include "sph_skein.h"
-
-
-/* Move init out of loop, so init once externally, and then use one single memcpy with that bigger memory block */
-typedef struct {
-	sph_blake512_context 	blake1, blake2;
-	sph_bmw512_context		bmw1, bmw2;
-	sph_groestl512_context	groestl1, groestl2;
-	sph_skein512_context	skein1, skein2;
-	sph_jh512_context		jh1, jh2;
-	sph_keccak512_context	keccak1, keccak2;
-} quarkhash_context_holder;
-
-quarkhash_context_holder base_contexts;
-
-void init_quarkhash_contexts()
-{
-    sph_blake512_init(&base_contexts.blake1);
-    sph_bmw512_init(&base_contexts.bmw1);
-    sph_groestl512_init(&base_contexts.groestl1);
-    sph_skein512_init(&base_contexts.skein1);
-    sph_groestl512_init(&base_contexts.groestl2);
-    sph_jh512_init(&base_contexts.jh1);	
-    sph_blake512_init(&base_contexts.blake2);	
-    sph_bmw512_init(&base_contexts.bmw2);	
-    sph_keccak512_init(&base_contexts.keccak1);	
-    sph_skein512_init(&base_contexts.skein2);
-    sph_keccak512_init(&base_contexts.keccak2);
-    sph_jh512_init(&base_contexts.jh2);	
-}
+#include "sph_shavite.h"
 
 static void quarkhash(void *state, const void *input)
 {
-//    sph_blake512_context     ctx_blake;
-//    sph_bmw512_context       ctx_bmw;
-//    sph_groestl512_context   ctx_groestl;
-//    sph_jh512_context        ctx_jh;
-//    sph_keccak512_context    ctx_keccak;
-//    sph_skein512_context     ctx_skein;
-//    static unsigned char pblank[1];
-
-	quarkhash_context_holder ctx;
-
-    uint32_t mask = 8;
-    uint32_t zero = 0;
-
-	//these uint512 in the c++ source of the client are backed by an array of uint32
-    uint32_t hashA[16], hashB[16];	
+    sph_shavite512_context	 ctx_shavite;
+    uint32_t hash[16];
 	
-
-	//do one memcopy to get fresh contexts, its faster even with a larger block then issuing 9 memcopies
-	memcpy(&ctx, &base_contexts, sizeof(base_contexts));
-
-	
-//    sph_blake512_init(&ctx.blake1);
-    sph_blake512 (&ctx.blake1, input, 80);
-    sph_blake512_close (&ctx.blake1, hashA);	 //0
-	
-//    sph_bmw512_init(&ctx.bmw1);
-    sph_bmw512 (&ctx.bmw1, hashA, 64);    //0
-    sph_bmw512_close(&ctx.bmw1, hashB);   //1
-	
-    if ((hashB[0] & mask) != zero)   //1
-    {
-//        sph_groestl512_init(&ctx.groestl1);
-        sph_groestl512 (&ctx.groestl1, hashB, 64); //1
-        sph_groestl512_close(&ctx.groestl1, hashA); //2
-    }
-    else
-    {
-//        sph_skein512_init(&ctx.skein1);
-        sph_skein512 (&ctx.skein1, hashB, 64); //1
-        sph_skein512_close(&ctx.skein1, hashA); //2
-    }
-	
-//    sph_groestl512_init(&ctx.groestl2);
-    sph_groestl512 (&ctx.groestl2, hashA, 64); //2
-    sph_groestl512_close(&ctx.groestl2, hashB); //3
-
-//    sph_jh512_init(&ctx.jh1);
-    sph_jh512 (&ctx.jh1, hashB, 64); //3
-    sph_jh512_close(&ctx.jh1, hashA); //4
-
-    if ((hashA[0] & mask) != zero) //4
-    {
-//        sph_blake512_init(&ctx.blake2);
-        sph_blake512 (&ctx.blake2, hashA, 64); //
-        sph_blake512_close(&ctx.blake2, hashB); //5
-    }
-    else
-    {
-//        sph_bmw512_init(&ctx.bmw2);
-        sph_bmw512 (&ctx.bmw2, hashA, 64); //4
-        sph_bmw512_close(&ctx.bmw2, hashB);   //5
-    }
+    sph_shavite512_init(&ctx_shavite);
+    sph_shavite512 (&ctx_shavite, (const void*) input, 80);
+    sph_shavite512_close(&ctx_shavite, (void*) hash);
     
-//    sph_keccak512_init(&ctx.keccak1);
-    sph_keccak512 (&ctx.keccak1, hashB, 64); //5
-    sph_keccak512_close(&ctx.keccak1, hashA); //6
+    sph_shavite512_init(&ctx_shavite);
+    sph_shavite512(&ctx_shavite, (const void*) hash, 64);
+    sph_shavite512_close(&ctx_shavite, (void*) hash);
 
-//    sph_skein512_init(&ctx.skein2);
-    sph_skein512 (&ctx.skein2, hashA, 64); //6
-    sph_skein512_close(&ctx.skein2, hashB); //7
+    memcpy(state, hash, 32);
 
-    if ((hashB[0] & mask) != zero) //7
-    {
-//        sph_keccak512_init(&ctx.keccak2);
-        sph_keccak512 (&ctx.keccak2, hashB, 64); //
-        sph_keccak512_close(&ctx.keccak2, hashA); //8
-    }
-    else
-    {
-//        sph_jh512_init(&ctx.jh2);
-        sph_jh512 (&ctx.jh2, hashB, 64); //7
-        sph_jh512_close(&ctx.jh2, hashA); //8
-    }
-
-	memcpy(state, hashA, 32);
-	
 /*	
 	int ii;
 	printf("result: ");
@@ -139,7 +32,7 @@ static void quarkhash(void *state, const void *input)
 */	
 }
 
-int scanhash_quark(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
+int scanhash_ink(int thr_id, uint32_t *pdata, const uint32_t *ptarget,
 	uint32_t max_nonce, unsigned long *hashes_done)
 {
 	uint32_t n = pdata[19] - 1;
